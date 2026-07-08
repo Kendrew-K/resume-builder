@@ -21,7 +21,11 @@ def write_internships_md(path, postings: list[Posting]) -> None:
         location = (p.location or "").replace("|", "/")
         url = (p.url or "").replace("|", "/")
         rationale = (p.rationale or "").replace("|", "/")
-        score = f"{p.fit_score:.2f}" if p.fit_score is not None else "-"
+        # str(float) round-trips exactly (float(str(x)) == x), unlike a fixed
+        # .2f format, which can truncate a score across the 30% cutoff and
+        # make rank's in-memory qualifying count disagree with a value
+        # re-parsed from this file later (e.g. by the apply playbook).
+        score = str(p.fit_score) if p.fit_score is not None else "-"
         lines.append(
             f"| {title} | {company} | {location} | {url} | {p.source} | "
             f"{p.fetched_date} | {score} | {rationale} |\n"

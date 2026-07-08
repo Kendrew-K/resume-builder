@@ -42,6 +42,18 @@ def test_sorted_highest_fit_first(tmp_path):
     assert loaded[1].title == "Low Fit"
 
 
+def test_fit_score_round_trips_exactly_at_the_threshold_boundary(tmp_path):
+    """Regression for Finding 3: a score just below the 30% cutoff must not
+    round up to 0.30 on write, or rank's qualifying count (computed on the
+    true in-memory float) would disagree with a later re-parse of this file
+    (e.g. by the apply playbook), which would wrongly include the posting."""
+    path = tmp_path / "internships.md"
+    write_internships_md(path, [_p(fit_score=0.296)])
+    loaded = parse_internships_md(path)
+    assert loaded[0].fit_score == 0.296
+    assert "0.30" not in path.read_text(encoding="utf-8")
+
+
 def test_pipe_escape_in_title_and_fields(tmp_path):
     """Test that pipe characters in title, company, location, url are escaped for markdown tables."""
     path = tmp_path / "internships.md"
