@@ -16,10 +16,14 @@ def write_internships_md(path, postings: list[Posting]) -> None:
         HEADER,
     ]
     for p in ordered:
+        title = (p.title or "").replace("|", "/")
+        company = (p.company or "").replace("|", "/")
+        location = (p.location or "").replace("|", "/")
+        url = (p.url or "").replace("|", "/")
         rationale = (p.rationale or "").replace("|", "/")
         score = f"{p.fit_score:.2f}" if p.fit_score is not None else "-"
         lines.append(
-            f"| {p.title} | {p.company} | {p.location} | {p.url} | {p.source} | "
+            f"| {title} | {company} | {location} | {url} | {p.source} | "
             f"{p.fetched_date} | {score} | {rationale} |\n"
         )
     pathlib.Path(path).write_text("".join(lines), encoding="utf-8")

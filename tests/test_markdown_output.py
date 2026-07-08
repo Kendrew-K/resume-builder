@@ -40,3 +40,30 @@ def test_sorted_highest_fit_first(tmp_path):
     loaded = parse_internships_md(path)
     assert loaded[0].title == "High Fit"
     assert loaded[1].title == "Low Fit"
+
+
+def test_pipe_escape_in_title_and_fields(tmp_path):
+    """Test that pipe characters in title, company, location, url are escaped for markdown tables."""
+    path = tmp_path / "internships.md"
+    # Create posting with pipes in multiple fields
+    posting = Posting(
+        title="Data Analyst Intern | Fall 2026",
+        company="Acme | Tech Corp",
+        location="Dallas | Remote",
+        url="https://example.com/job?param=a|b",
+        source="linkedin",
+        fetched_date="2026-07-08",
+        fit_score=0.75,
+        rationale="Good fit | SQL match"
+    )
+    write_internships_md(path, [posting])
+    loaded = parse_internships_md(path)
+
+    # Verify that pipes are escaped with forward slashes in round-trip
+    assert len(loaded) == 1
+    assert loaded[0].title == "Data Analyst Intern / Fall 2026"
+    assert loaded[0].company == "Acme / Tech Corp"
+    assert loaded[0].location == "Dallas / Remote"
+    assert loaded[0].url == "https://example.com/job?param=a/b"
+    assert loaded[0].rationale == "Good fit / SQL match"
+    assert loaded[0].fit_score == 0.75
