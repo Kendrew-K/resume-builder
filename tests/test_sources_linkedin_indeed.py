@@ -16,6 +16,19 @@ LINKEDIN_FIXTURE = """
           Dallas, TX
           </span>
 </div>
+<div class="base-card" data-entity-urn="urn:li:jobPosting:3">
+  <a class="base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]" href="https://www.linkedin.com/jobs/view/no-company-page-intern-4437848831?position=3&pageNum=0">
+  </a>
+  <h3 class="base-search-card__title">
+      No Company Page Intern
+  </h3>
+  <h4 class="base-search-card__subtitle">
+          Stealth Startup (no company page, so no nested &lt;a&gt; link)
+  </h4>
+  <span class="job-search-card__location">
+          Austin, TX
+          </span>
+</div>
 <div class="base-card" data-entity-urn="urn:li:jobPosting:2">
   <a class="base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]" href="https://www.linkedin.com/jobs/view/bi-intern-at-widgets-4437848830?position=2&pageNum=0">
   </a>
@@ -43,13 +56,30 @@ window.mosaic.providerData["mosaic-provider-jobcards"]={"metaData":{"mosaicProvi
 
 def test_fetch_linkedin_parses_fixture():
     postings = fetch_linkedin("Data Analyst Intern", "Dallas, TX", fetch=lambda url: LINKEDIN_FIXTURE)
-    assert len(postings) == 2
+    assert len(postings) == 3
     assert postings[0].title == "Data Analyst Intern"
     assert postings[0].company == "Acme Corp"
     assert postings[0].location == "Dallas, TX"
     assert postings[0].url == "https://www.linkedin.com/jobs/view/data-analyst-intern-at-acme-4437848829"
     assert postings[0].source == "linkedin"
-    assert postings[1].location == "Remote"
+    assert postings[2].location == "Remote"
+
+
+def test_fetch_linkedin_missing_company_link_does_not_shift_later_cards():
+    """Regression for Finding 2: a card whose company has no LinkedIn page
+    (bare text instead of the <a> the company regex requires) must default
+    that one card's company to "" without shifting any other card's fields
+    out of alignment, unlike the old whole-page findall-then-zip approach."""
+    postings = fetch_linkedin("Data Analyst Intern", "Dallas, TX", fetch=lambda url: LINKEDIN_FIXTURE)
+    middle = postings[1]
+    assert middle.title == "No Company Page Intern"
+    assert middle.company == ""
+    assert middle.location == "Austin, TX"
+    last = postings[2]
+    assert last.title == "BI Intern"
+    assert last.company == "Widgets Inc"
+    assert last.location == "Remote"
+    assert last.url == "https://www.linkedin.com/jobs/view/bi-intern-at-widgets-4437848830"
 
 
 def test_fetch_linkedin_returns_empty_on_fetch_failure():

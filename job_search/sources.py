@@ -30,6 +30,17 @@ def _extract_json_object(text: str, start: int) -> str | None:
     return None
 
 
+def _split_cards(html: str, container_marker: str) -> list[str]:
+    """Split a search-results page into one HTML chunk per job card, using a
+    stable per-card boundary marker (e.g. `<div class="base-card"`). Parsing
+    each card's fields within its own chunk means a field missing from one
+    card can't shift every subsequent card's fields out of alignment, unlike
+    running one findall per field across the whole page and zipping by index.
+    """
+    chunks = re.split(f"(?={re.escape(container_marker)})", html)
+    return [c for c in chunks if c.lstrip().startswith(container_marker)]
+
+
 def fetch_linkedin(keywords: str, location: str, fetch=None) -> list[Posting]:
     fetch = fetch or _http_get
     url = "https://www.linkedin.com/jobs/search?" + urllib.parse.urlencode(
@@ -39,17 +50,27 @@ def fetch_linkedin(keywords: str, location: str, fetch=None) -> list[Posting]:
         html = fetch(url)
     except Exception:
         return []
-    titles = re.findall(r'base-search-card__title">\s*([^<]+?)\s*<', html)
-    companies = re.findall(r'base-search-card__subtitle">\s*<a[^>]*>\s*([^<]+?)\s*<', html)
-    locations = re.findall(r'job-search-card__location">\s*([^<]+?)\s*<', html)
-    urls = re.findall(r'class="base-card__full-link[^"]*"\s+href="([^"?]+)', html)
-    n = min(len(titles), len(companies), len(locations), len(urls))
-    return [
-        Posting(title=titles[i].strip(), company=companies[i].strip(),
-                location=locations[i].strip(), url=urls[i].strip(),
-                source="linkedin", fetched_date=today_iso())
-        for i in range(n)
-    ]
+    postings = []
+    for card in _split_cards(html, '<div class="base-card"'):
+        title_m = re.search(r'base-search-card__title">\s*([^<]+?)\s*<', card)
+        url_m = re.search(r'class="base-card__full-link[^"]*"\s+href="([^"?]+)', card)
+        if not title_m or not url_m:
+            # Title and URL are required to have a usable Posting at all —
+            # drop just this one card rather than the whole page.
+            continue
+        company_m = re.search(r'base-search-card__subtitle">\s*<a[^>]*>\s*([^<]+?)\s*<', card)
+        location_m = re.search(r'job-search-card__location">\s*([^<]+?)\s*<', card)
+        postings.append(Posting(
+            title=title_m.group(1).strip(),
+            # Company/location are optional — e.g. a company with no
+            # LinkedIn page renders as bare text instead of the <a> this
+            # regex requires. Default to "" rather than dropping the card.
+            company=company_m.group(1).strip() if company_m else "",
+            location=location_m.group(1).strip() if location_m else "",
+            url=url_m.group(1).strip(),
+            source="linkedin", fetched_date=today_iso(),
+        ))
+    return postings
 
 
 def fetch_indeed(keywords: str, location: str, fetch=None) -> list[Posting]:
@@ -111,17 +132,30 @@ def fetch_glassdoor(keywords: str, location: str, fetch=None) -> list[Posting]:
         html = fetch(search_url)
     except Exception:
         return []
-    titles = re.findall(r'class="JobCard_jobTitle__[^"]*"[^>]*>([^<]+)<', html)
-    hrefs = re.findall(r'class="JobCard_jobTitle__[^"]*"[^>]*href="([^"?]+)', html)
-    companies = re.findall(r'class="EmployerProfile_compactEmployerName__[^"]*"[^>]*>([^<]+)<', html)
-    locations = re.findall(r'class="JobCard_location__[^"]*"[^>]*>([^<]+)<', html)
-    n = min(len(titles), len(hrefs), len(companies), len(locations))
-    return [
-        Posting(title=titles[i].strip(), company=companies[i].strip(),
-                location=locations[i].strip(), url=hrefs[i].strip(),
-                source="glassdoor", fetched_date=today_iso())
-        for i in range(n)
-    ]
+    postings = []
+    # Real container class confirmed via a live fetch of a Glassdoor search
+    # results page (2026-07-08 design research): `JobCard_jobCardContainer__`
+    # wraps title/company/location/link together for one card, same
+    # stable-prefix-before-`__hash` pattern as the field-level classes below.
+    for card in _split_cards(html, '<div class="JobCard_jobCardContainer__'):
+        title_m = re.search(r'class="JobCard_jobTitle__[^"]*"[^>]*>([^<]+)<', card)
+        href_m = re.search(r'class="JobCard_jobTitle__[^"]*"[^>]*href="([^"?]+)', card)
+        if not title_m or not href_m:
+            # Title and URL are required to have a usable Posting at all —
+            # drop just this one card rather than the whole page.
+            continue
+        company_m = re.search(r'class="EmployerProfile_compactEmployerName__[^"]*"[^>]*>([^<]+)<', card)
+        location_m = re.search(r'class="JobCard_location__[^"]*"[^>]*>([^<]+)<', card)
+        postings.append(Posting(
+            title=title_m.group(1).strip(),
+            # Company/location are optional — default to "" rather than
+            # dropping the card if a field-level class is absent from a card.
+            company=company_m.group(1).strip() if company_m else "",
+            location=location_m.group(1).strip() if location_m else "",
+            url=href_m.group(1).strip(),
+            source="glassdoor", fetched_date=today_iso(),
+        ))
+    return postings
 
 
 def fetch_ziprecruiter(keywords: str, location: str, fetch=None) -> list[Posting]:
