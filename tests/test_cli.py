@@ -45,14 +45,47 @@ def test_run_scrape_excludes_already_handled(tmp_path):
     output_path = tmp_path / "fall_2026_internships.md"
     tracker_path = tmp_path / "tracker.csv"
     write_tracker(tracker_path, {
-        "https://li.example/1": TrackerRow(company="Acme", title="Data Analyst Intern",
-                                            url="https://li.example/1", status="applied",
-                                            fit_score="0.5", date="2026-07-01")
+        ("data analyst intern", "acme", "remote"): TrackerRow(
+            company="Acme", title="Data Analyst Intern", location="Remote",
+            url="https://li.example/1", status="applied",
+            fit_score="0.5", date="2026-07-01")
     })
 
     def fake_linkedin(kw, loc, fetch=None):
         return [Posting(title="Data Analyst Intern", company="Acme", location="Remote",
                          url="https://li.example/1", source="linkedin", fetched_date="2026-07-08")]
+
+    def empty(kw, loc, fetch=None):
+        return []
+
+    postings, _ = run_scrape(
+        source_fns=[("linkedin", fake_linkedin), ("indeed", empty),
+                    ("glassdoor", empty), ("ziprecruiter", empty)],
+        keywords=["Data Analyst Intern"], locations=["Remote"],
+        tracker_path=tracker_path, output_path=output_path,
+        within_range=lambda loc, fetch=None: True,
+    )
+    assert postings == []
+
+
+def test_run_scrape_excludes_already_handled_posting_seen_under_a_different_url(tmp_path):
+    """Regression for Finding 1: a posting marked applied under its Indeed URL
+    in a prior run must still be excluded when the same job resurfaces via
+    LinkedIn under a different URL in a fresh scrape."""
+    from job_search.tracker import TrackerRow, write_tracker
+    output_path = tmp_path / "fall_2026_internships.md"
+    tracker_path = tmp_path / "tracker.csv"
+    write_tracker(tracker_path, {
+        ("data analyst intern", "acme", "remote"): TrackerRow(
+            company="Acme", title="Data Analyst Intern", location="Remote",
+            url="https://indeed.example/999", status="applied",
+            fit_score="0.5", date="2026-07-01")
+    })
+
+    def fake_linkedin(kw, loc, fetch=None):
+        return [Posting(title="Data Analyst Intern", company="Acme", location="Remote",
+                         url="https://li.example/different-url", source="linkedin",
+                         fetched_date="2026-07-08")]
 
     def empty(kw, loc, fetch=None):
         return []

@@ -4,35 +4,52 @@ from job_search.tracker import TrackerRow, read_tracker, write_tracker, upsert, 
 def test_write_then_read_round_trips(tmp_path):
     path = tmp_path / "tracker.csv"
     rows = {}
-    rows = upsert(rows, TrackerRow(company="Acme", title="Data Analyst Intern",
+    rows = upsert(rows, TrackerRow(company="Acme", title="Data Analyst Intern", location="Dallas, TX",
                                     url="https://example.com/1", status="pending-review",
                                     fit_score="0.55", date="2026-07-08"))
     write_tracker(path, rows)
     loaded = read_tracker(path)
-    assert loaded["https://example.com/1"].company == "Acme"
-    assert loaded["https://example.com/1"].status == "pending-review"
+    key = ("data analyst intern", "acme", "dallas, tx")
+    assert loaded[key].company == "Acme"
+    assert loaded[key].status == "pending-review"
 
 
 def test_read_missing_file_returns_empty_dict(tmp_path):
     assert read_tracker(tmp_path / "does_not_exist.csv") == {}
 
 
-def test_upsert_overwrites_same_url():
+def test_upsert_overwrites_same_posting_key():
     rows = {}
-    rows = upsert(rows, TrackerRow(company="Acme", title="X", url="https://example.com/1",
-                                    status="pending", fit_score="0.4", date="2026-07-08"))
-    rows = upsert(rows, TrackerRow(company="Acme", title="X", url="https://example.com/1",
-                                    status="applied", fit_score="0.4", date="2026-07-09"))
+    rows = upsert(rows, TrackerRow(company="Acme", title="X", location="Dallas, TX",
+                                    url="https://example.com/1", status="pending", fit_score="0.4",
+                                    date="2026-07-08"))
+    rows = upsert(rows, TrackerRow(company="Acme", title="X", location="Dallas, TX",
+                                    url="https://example.com/1-alt-url", status="applied",
+                                    fit_score="0.4", date="2026-07-09"))
+    key = ("x", "acme", "dallas, tx")
     assert len(rows) == 1
-    assert rows["https://example.com/1"].status == "applied"
+    assert rows[key].status == "applied"
+    assert rows[key].url == "https://example.com/1-alt-url"
 
 
 def test_is_handled():
     rows = {}
-    rows = upsert(rows, TrackerRow(company="A", title="T", url="u1", status="applied",
-                                    fit_score="0.5", date="2026-07-08"))
-    rows = upsert(rows, TrackerRow(company="A", title="T", url="u2", status="needs-manual",
-                                    fit_score="0.5", date="2026-07-08"))
-    assert is_handled(rows, "u1") is True
-    assert is_handled(rows, "u2") is False
-    assert is_handled(rows, "unknown-url") is False
+    rows = upsert(rows, TrackerRow(company="A", title="T", location="Dallas, TX", url="u1",
+                                    status="applied", fit_score="0.5", date="2026-07-08"))
+    rows = upsert(rows, TrackerRow(company="A", title="T2", location="Dallas, TX", url="u2",
+                                    status="needs-manual", fit_score="0.5", date="2026-07-08"))
+    assert is_handled(rows, "T", "A", "Dallas, TX") is True
+    assert is_handled(rows, "T2", "A", "Dallas, TX") is False
+    assert is_handled(rows, "Unknown", "A", "Dallas, TX") is False
+
+
+def test_is_handled_matches_across_different_urls_for_same_posting():
+    """A posting marked applied under one URL must still be recognized as
+    handled when it resurfaces under a different URL from another source
+    (the scenario Finding 1 fixes)."""
+    rows = {}
+    rows = upsert(rows, TrackerRow(company="Acme", title="Data Analyst Intern", location="Remote",
+                                    url="https://indeed.example/1", status="applied",
+                                    fit_score="0.5", date="2026-07-01"))
+    assert is_handled(rows, "Data Analyst Intern", "Acme", "Remote") is True
+    assert is_handled(rows, "DATA ANALYST INTERN", "acme", "remote") is True

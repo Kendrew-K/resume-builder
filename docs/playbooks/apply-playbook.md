@@ -10,7 +10,12 @@ browser review screen for the user to submit or skip by hand.
 
 1. Read `fall_2026_internships.md`, parse rows with `job_search.markdown_output.parse_internships_md`.
 2. Read `job_search_tracker.csv` with `job_search.tracker.read_tracker`.
-3. Queue = postings where `fit_score >= 0.30` AND `job_search.tracker.is_handled(tracker, url)` is `False`.
+3. Queue = postings where `fit_score >= 0.30` AND
+   `job_search.tracker.is_handled(tracker, title, company, location)` is `False`.
+   (The tracker is keyed by normalized `(title, company, location)` — the
+   same identity `job_search.posting.dedupe_postings` uses — not by URL, so a
+   posting already marked `applied`/`skipped` is recognized even if it
+   resurfaces under a different URL from another source.)
 4. If the queue is empty, report that and stop — nothing to do.
 
 ## Per posting in the queue (repeat until queue is empty)
@@ -50,7 +55,9 @@ browser review screen for the user to submit or skip by hand.
    - `greenhouse.io` in the URL -> Greenhouse
    - `lever.co` in the URL -> Lever
    - anything else -> **unsupported**. Update the tracker
-     (`job_search.tracker.upsert` + `write_tracker`) with
+     (`job_search.tracker.upsert` + `write_tracker`) with a `TrackerRow`
+     carrying `company=<posting's company>`, `title=<posting's title>`,
+     `location=<posting's location>`, `url=<posting's url>`,
      `status="needs-manual"`, `fit_score=<the posting's score>`,
      `date=<today>`. Move to the next posting in the queue. Do not attempt
      to guess-fill an unrecognized form.
@@ -76,7 +83,11 @@ browser review screen for the user to submit or skip by hand.
    - Reached the review screen: `status="pending-review"`.
    - Skipped for unsupported ATS or unparseable form (step 4): `status="needs-manual"`.
    - Use `job_search.tracker.upsert` then `write_tracker` for each update —
-     don't hand-edit the CSV.
+     don't hand-edit the CSV. Every `TrackerRow` needs all seven fields:
+     `company`, `title`, `location`, `url`, `status`, `fit_score`, `date` —
+     `location` must match the posting's location exactly (same string used
+     to build the queue), since `upsert`/`is_handled` key on normalized
+     `(title, company, location)`, not on `url`.
 
 7. Move to the next posting in the queue. Do not ask the user for permission
    to start the next one — the batch runs unattended through drafting and

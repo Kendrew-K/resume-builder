@@ -51,7 +51,7 @@ def run_scrape(source_fns, keywords, locations, tracker_path, output_path,
                 all_postings.extend(results)
     deduped = dedupe_postings(all_postings)
     tracker = read_tracker(tracker_path)
-    fresh = [p for p in deduped if not is_handled(tracker, p.url)]
+    fresh = [p for p in deduped if not is_handled(tracker, p.title, p.company, p.location)]
     nearby = [p for p in fresh if within_range(p.location)]
     write_internships_md(output_path, nearby)
     return nearby, sorted(set(blocked))
