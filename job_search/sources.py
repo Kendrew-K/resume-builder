@@ -93,3 +93,50 @@ def fetch_posting_text(url: str, fetch=None) -> str:
     except Exception:
         return ""
     return re.sub(r"<[^>]+>", " ", html)
+
+
+def fetch_glassdoor(keywords: str, location: str, fetch=None) -> list[Posting]:
+    fetch = fetch or _http_get
+    try:
+        auto_url = "https://www.glassdoor.com/autocomplete/location?" + urllib.parse.urlencode(
+            {"term": location, "locationTypeFilters": "CITY"}
+        )
+        candidates = json.loads(fetch(auto_url))
+        if not candidates:
+            return []
+        loc_id = candidates[0]["locationId"]
+        search_url = "https://www.glassdoor.com/Job/jobs.htm?" + urllib.parse.urlencode(
+            {"sc.keyword": keywords, "locT": "C", "locId": loc_id}
+        )
+        html = fetch(search_url)
+    except Exception:
+        return []
+    titles = re.findall(r'class="JobCard_jobTitle__[^"]*"[^>]*>([^<]+)<', html)
+    hrefs = re.findall(r'class="JobCard_jobTitle__[^"]*"[^>]*href="([^"?]+)', html)
+    companies = re.findall(r'class="EmployerProfile_compactEmployerName__[^"]*"[^>]*>([^<]+)<', html)
+    locations = re.findall(r'class="JobCard_location__[^"]*"[^>]*>([^<]+)<', html)
+    n = min(len(titles), len(hrefs), len(companies), len(locations))
+    return [
+        Posting(title=titles[i].strip(), company=companies[i].strip(),
+                location=locations[i].strip(), url=hrefs[i].strip(),
+                source="glassdoor", fetched_date=today_iso())
+        for i in range(n)
+    ]
+
+
+def fetch_ziprecruiter(keywords: str, location: str, fetch=None) -> list[Posting]:
+    # Confirmed blocked by a Cloudflare JS challenge during design research
+    # (2026-07-08 live check) — this consistently degrades to an empty list
+    # rather than raising, matching the graceful-degrade contract of every
+    # other source. No attempt is made to bypass the challenge.
+    fetch = fetch or _http_get
+    url = "https://www.ziprecruiter.com/jobs-search?" + urllib.parse.urlencode(
+        {"search": keywords, "location": location}
+    )
+    try:
+        html = fetch(url)
+    except Exception:
+        return []
+    if "Just a moment" in html or "cf-challenge" in html:
+        return []
+    return []
