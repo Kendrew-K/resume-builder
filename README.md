@@ -84,10 +84,18 @@ python md_to_pdf.py resumes/acme.md      # writes resumes/acme.pdf
 ```
 
 The Markdown convention the exporter expects is documented in
-[`RESUME_GUIDELINES.md`](RESUME_GUIDELINES.md): `###  Title | Date` becomes a
-flex row with the date pushed right, `##` becomes a ruled section header. The
-CSS is deliberately single-column with no tables, sidebars or icons, because
-those are what break ATS parsers.
+[`RESUME_FORMAT.md`](RESUME_FORMAT.md): `### Title | Date` becomes a flex row
+with the date pushed right, `##` becomes a ruled section header. The CSS is
+deliberately single-column with no tables, sidebars or icons, because those are
+what break ATS parsers.
+
+[`example_resume.md`](example_resume.md) is a complete, fictional resume in that
+format. Exporting it is the fastest way to check your setup works:
+
+```bash
+python md_to_pdf.py example_resume.md
+grep -a -o "/Count [0-9]*" example_resume.pdf    # want /Count 1
+```
 
 ## Sources, and their honest limits
 
