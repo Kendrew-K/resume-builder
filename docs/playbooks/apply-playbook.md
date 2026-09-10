@@ -36,7 +36,7 @@ browser review screen for the user to submit or skip by hand.
 2. **Resume**: check whether `resumes/<company-slug>.md` already exists
    (slug = company name, lowercased, spaces to underscores, matching the
    existing convention seen in `resumes/` — e.g. `jpmc.md`, `hypernet.md`).
-   - If missing: draft it now following `RESUME_GUIDELINES.md` exactly —
+   - If missing: draft it now following `RESUME_FORMAT.md` exactly —
      pull from `experiences.md`, tailor to what step 1 surfaced, one page,
      `EDUCATION -> PROFESSIONAL EXPERIENCE -> PROJECTS & EXTRACURRICULAR -> SKILLS`
      order, 3-5 bullets per project entry, no em dashes, no fabrication.

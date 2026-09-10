@@ -14,7 +14,7 @@
 - `apply` never auto-submits an application under any code path — every posting stops at the browser review screen.
 - Fit-score cutoff for bulk apply: exactly 30% (`>= 0.30`), not approximate.
 - Location filter: within 20 miles of `<HOME_ADDRESS>`, OR the posting is remote. Everything else excluded.
-- Resume and cover letter: hard 1-page limit each, verified via `grep -a -o "/Count [0-9]*" resumes/<company>.pdf` reading `/Count 1` (existing rule from `RESUME_GUIDELINES.md`).
+- Resume and cover letter: hard 1-page limit each, verified via `grep -a -o "/Count [0-9]*" resumes/<company>.pdf` reading `/Count 1` (existing rule from `RESUME_FORMAT.md`).
 - `scrape` fully overwrites `fall_2026_internships.md` each run; `job_search_tracker.csv` is never overwritten by `scrape` — it's the persistent applied/skipped record.
 - Manually triggered only — no cron/scheduling anywhere in this plan.
 - Reuse `md_to_pdf.py` for cover letters too (it's a generic markdown-to-PDF converter, confirmed by reading it — no new PDF script).
@@ -1263,7 +1263,7 @@ git commit -m "fix: adjust scraper against live site drift found during smoke ch
 - Create: `docs/playbooks/apply-playbook.md`
 
 **Interfaces:**
-- Consumes: `job_search_tracker.csv` format (Task 3), `fall_2026_internships.md` format (Task 7), `FIT_THRESHOLD` (Task 6), existing `RESUME_GUIDELINES.md` / `README.md` resume pipeline, existing `md_to_pdf.py`.
+- Consumes: `job_search_tracker.csv` format (Task 3), `fall_2026_internships.md` format (Task 7), `FIT_THRESHOLD` (Task 6), existing `RESUME_FORMAT.md` / `README.md` resume pipeline, existing `md_to_pdf.py`.
 - Produces: nothing code-level — this is the instruction set Claude follows when the user says "run apply." No placeholders: every step below is the literal procedure, not a description of one.
 
 This is not a Python task — bulk apply requires LLM judgment (drafting resume/cover-letter text, reading company research off the posting) and live browser control (Playwright MCP), neither of which is a pure function. Write the file with this exact content:
@@ -1297,7 +1297,7 @@ browser review screen for the user to submit or skip by hand.
 2. **Resume**: check whether `resumes/<company-slug>.md` already exists
    (slug = company name, lowercased, spaces to underscores, matching the
    existing convention seen in `resumes/` — e.g. `jpmc.md`, `hypernet.md`).
-   - If missing: draft it now following `RESUME_GUIDELINES.md` exactly —
+   - If missing: draft it now following `RESUME_FORMAT.md` exactly —
      pull from `experiences.md`, tailor to what step 1 surfaced, one page,
      `EDUCATION -> PROFESSIONAL EXPERIENCE -> PROJECTS & EXTRACURRICULAR -> SKILLS`
      order, 3-5 bullets per project entry, no em dashes, no fabrication.
