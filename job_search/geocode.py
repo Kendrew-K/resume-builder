@@ -105,3 +105,25 @@ def is_within_range(location: str, fetch=None) -> bool:
     if home is None or target is None:
         return False
     return haversine_miles(home, target) <= RADIUS_MILES
+
+
+def main(argv: list[str]) -> int:
+    """Print the keep/drop verdict for each location given on the command line.
+
+    Exists so the radius and remote rules can be checked against real strings
+    from a job board without running a full scrape, which is slow and rate
+    limited. Locations containing "remote" are answered offline; anything else
+    costs one geocode lookup.
+    """
+    if not argv:
+        print("usage: python -m job_search.geocode <location> [<location> ...]")
+        print(f"home:  {HOME_ADDRESS}  radius: {RADIUS_MILES} miles")
+        return 2
+    for location in argv:
+        print(f"{'KEEP' if is_within_range(location) else 'drop'}  {location}")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    raise SystemExit(main(sys.argv[1:]))

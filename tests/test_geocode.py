@@ -87,3 +87,14 @@ def test_mentions_us_does_not_match_state_codes_inside_words():
     assert not mentions_us("Berlin, Germany")
     assert not mentions_us("Cork, Ireland")
     assert not mentions_us("Toronto, ON")
+
+
+def test_main_prints_keep_drop_per_location(capsys):
+    assert geo.main(["Remote", "Bogota, Colombia - Remote"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out == ["KEEP  Remote", "drop  Bogota, Colombia - Remote"]
+
+
+def test_main_without_arguments_prints_usage_and_exits_nonzero(capsys):
+    assert geo.main([]) == 2
+    assert "usage:" in capsys.readouterr().out

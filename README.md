@@ -70,6 +70,16 @@ python job_search_cli.py status          # what is applied / pending / manual
 python job_search_cli.py applied <url>   # mark one or more as applied
 ```
 
+To check the location rules against real strings from a job board without
+running a scrape:
+
+```bash
+$ python -m job_search.geocode "Remote" "Dallas, TX (Remote)" "Bogota, Colombia - Remote"
+KEEP  Remote
+KEEP  Dallas, TX (Remote)
+drop  Bogota, Colombia - Remote
+```
+
 `scrape` also caches the job descriptions it got for free from company ATS
 boards, so `rank` can reuse them instead of re-fetching:
 
