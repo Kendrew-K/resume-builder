@@ -2,3 +2,27 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .playwright-mcp/
+.superpowers/
+.claude/
+
+# Personal data: your real profile, generated resumes, and application state.
+# The repo ships example_profile.md instead so the pipeline is runnable
+# without publishing anyone's contact details.
+experiences.md
+resumes/
+application_answers.md
+apply_queue.md
+snapshot*.md
+internships.md
+fall_*_internships.md
+job_search_tracker.csv
+Profile.pdf
+resume.docx
+resume template.png
+
+# Browser-collected scrape artifacts (Claude in Chrome)
+chrome_*.json
+ats_text.json
+posting_text.json
+.mcp.json*
+build_resumes.py

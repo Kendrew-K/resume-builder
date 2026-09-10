@@ -6,6 +6,11 @@ from job_search.posting import posting_key
 
 TRACKER_FIELDS = ["company", "title", "location", "url", "status", "fit_score", "date"]
 
+# Every status except plain "pending" means the posting has already been worked
+# once: applied/skipped are final, and pending-review/needs-manual mean a form
+# was already filled or handed off, so re-queueing them would re-apply.
+HANDLED_STATUSES = ("applied", "skipped", "pending-review", "needs-manual")
+
 
 @dataclass
 class TrackerRow:
@@ -49,6 +54,14 @@ def upsert(rows: dict[tuple[str, str, str], TrackerRow], row: TrackerRow) -> dic
     return rows
 
 
+def find_by_url(rows: dict[tuple[str, str, str], TrackerRow], url: str) -> TrackerRow | None:
+    """Look a row up by URL. The tracker keys on (title, company, location),
+    but `applied` is called with URLs after the posting has already dropped
+    out of the internships markdown, so the URL is all the caller has left.
+    """
+    return next((r for r in rows.values() if r.url == url), None)
+
+
 def is_handled(rows: dict[tuple[str, str, str], TrackerRow], title: str, company: str, location: str) -> bool:
     row = rows.get(posting_key(title, company, location))
-    return row is not None and row.status in ("applied", "skipped")
+    return row is not None and row.status in HANDLED_STATUSES

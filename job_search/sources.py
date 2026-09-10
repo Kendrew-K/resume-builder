@@ -1,9 +1,16 @@
+import functools
 import json
 import re
 import urllib.parse
 import urllib.request
 
 from job_search.posting import Posting, today_iso
+
+GITHUB_LISTINGS_URL = (
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships"
+    "/dev/.github/scripts/listings.json"
+)
+GITHUB_TERM = "Fall 2026"
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -155,6 +162,50 @@ def fetch_glassdoor(keywords: str, location: str, fetch=None) -> list[Posting]:
             url=href_m.group(1).strip(),
             source="glassdoor", fetched_date=today_iso(),
         ))
+    return postings
+
+
+@functools.lru_cache(maxsize=1)
+def _github_listings_raw() -> str:
+    # ~8 MB JSON; the CLI calls this source once per (keyword, location)
+    # pair, so cache the single download for the process lifetime.
+    return _http_get(GITHUB_LISTINGS_URL)
+
+
+def fetch_github_internships(keywords: str, location: str, fetch=None) -> list[Posting]:
+    """SimplifyJobs GitHub internship list: community-maintained JSON updated
+    several times daily with direct company ATS apply links, so it surfaces
+    postings 1-2 days before LinkedIn/Glassdoor re-aggregate them. The
+    `location` arg is ignored — every listing carries its own locations and
+    the CLI's radius/remote filter runs downstream.
+    """
+    try:
+        raw = fetch(GITHUB_LISTINGS_URL) if fetch else _github_listings_raw()
+        listings = json.loads(raw)
+    except Exception:
+        return []
+    # Match any meaningful keyword token ("data", "analyst", "bi", ...) as a
+    # whole word in the title; "intern" is dropped since every listing here
+    # is already an internship.
+    tokens = [t for t in keywords.lower().split() if t != "intern"]
+    postings = []
+    for item in listings:
+        if not item.get("active") or GITHUB_TERM not in item.get("terms", []):
+            continue
+        title = item.get("title", "")
+        url = item.get("url", "")
+        if not title or not url:
+            continue
+        if not any(re.search(rf"\b{re.escape(t)}", title.lower()) for t in tokens):
+            continue
+        # One Posting per listed location so the downstream radius filter
+        # can keep the Dallas office of a multi-site posting.
+        for loc in item.get("locations") or [""]:
+            postings.append(Posting(
+                title=title.strip(), company=item.get("company_name", "").strip(),
+                location=loc.strip(), url=url.strip(),
+                source="github", fetched_date=today_iso(),
+            ))
     return postings
 
 

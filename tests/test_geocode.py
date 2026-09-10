@@ -11,7 +11,7 @@ def test_haversine_known_distance():
 def test_geocode_parses_nominatim_response():
     geo._geocode_cache.clear()
     canned = '[{"lat":"33.0074446","lon":"-96.7974326"}]'
-    result = geo.geocode("<HOME_ADDRESS>", fetch=lambda url: canned)
+    result = geo.geocode("1600 Pennsylvania Ave NW, Washington, DC 20500", fetch=lambda url: canned)
     assert result == (33.0074446, -96.7974326)
 
 
@@ -56,3 +56,34 @@ def test_is_within_range_false_when_far():
 def test_is_within_range_false_when_geocode_fails():
     geo._geocode_cache.clear()
     assert geo.is_within_range("Gibberish Place Name", fetch=lambda url: "[]") is False
+
+
+def test_remote_is_only_in_range_when_us_based():
+    """Board sources are global, so a remote posting must name a US place."""
+    from job_search.geocode import is_within_range
+
+    def never_geocode(url):
+        raise AssertionError("US-remote check must not hit the network")
+
+    assert is_within_range("Remote", fetch=never_geocode)
+    assert is_within_range("United States (Remote)", fetch=never_geocode)
+    assert is_within_range("Remote in Virginia Beach, VA 23454", fetch=never_geocode)
+    assert is_within_range("Dallas, TX (Remote)", fetch=never_geocode)
+    assert is_within_range("Massachusetts, United States (Remote)", fetch=never_geocode)
+
+    assert not is_within_range("Colombia, Remote", fetch=never_geocode)
+    assert not is_within_range("Stuttgart Schockenried (Remote)", fetch=never_geocode)
+    assert not is_within_range("Bengaluru, India - Remote", fetch=never_geocode)
+    assert not is_within_range("Remote, Ontario", fetch=never_geocode)
+
+
+def test_mentions_us_does_not_match_state_codes_inside_words():
+    """Lowercased two-letter codes (IN/OR/ME/DE/LA) collide with ordinary
+    words, so codes must only match after a comma in the original casing."""
+    from job_search.geocode import mentions_us
+
+    assert mentions_us("Dallas, TX")
+    assert mentions_us("Plano, TX 75024")
+    assert not mentions_us("Berlin, Germany")
+    assert not mentions_us("Cork, Ireland")
+    assert not mentions_us("Toronto, ON")

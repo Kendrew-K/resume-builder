@@ -116,3 +116,124 @@ def test_run_rank_scores_and_rewrites(tmp_path):
     postings, qualifying = run_rank(output_path, experiences_path, fetch_text=fake_fetch_text)
     assert postings[0].fit_score == 0.5
     assert qualifying == 1  # 0.5 >= 0.30
+
+
+def test_run_ingest_merges_chrome_records_with_existing_md(tmp_path):
+    """Browser-collected records merge into an existing scrape's output rather
+    than replacing it, and the existing (github) URL wins dedupe."""
+    import json
+
+    from job_search_cli import run_ingest
+    from job_search.markdown_output import write_internships_md
+
+    output_path = tmp_path / "fall_2026_internships.md"
+    tracker_path = tmp_path / "tracker.csv"
+    write_internships_md(output_path, [
+        Posting(title="Data Analyst Intern", company="Acme", location="Remote",
+                url="https://acme.com/careers/1", source="github", fetched_date="2026-07-26"),
+    ])
+    dump = tmp_path / "chrome.json"
+    dump.write_text(json.dumps([
+        {"title": "Data Analyst Intern", "company": "ACME", "location": "remote",
+         "url": "https://linkedin.com/jobs/view/1", "source": "linkedin"},
+        {"title": "BI Intern", "company": "Globex", "location": "Remote",
+         "url": "https://linkedin.com/jobs/view/2", "source": "linkedin"},
+        {"title": "Far Away Intern", "company": "Other Co", "location": "Seattle, WA",
+         "url": "https://linkedin.com/jobs/view/3", "source": "linkedin"},
+        {"title": "", "company": "No Title Co", "location": "Remote",
+         "url": "https://linkedin.com/jobs/view/4", "source": "linkedin"},
+    ]), encoding="utf-8")
+
+    postings, n = run_ingest(dump, tracker_path, output_path,
+                             within_range=lambda loc: "remote" in loc.lower())
+
+    assert n == 3  # the record missing a title is dropped
+    by_title = {p.title: p for p in postings}
+    assert set(by_title) == {"Data Analyst Intern", "BI Intern"}  # Seattle filtered out
+    assert by_title["Data Analyst Intern"].url == "https://acme.com/careers/1"
+
+
+def test_cached_posting_text_prefers_cache_and_falls_back(tmp_path):
+    """A partial cache is still useful: cached URLs skip HTTP, missing ones
+    (and cached-but-empty ones, e.g. a 429'd fetch) fall back to it."""
+    import json
+
+    from job_search_cli import cached_posting_text
+
+    cache = tmp_path / "text.json"
+    cache.write_text(json.dumps({
+        "https://a.example/1": "cached description",
+        "https://a.example/2": "",
+    }), encoding="utf-8")
+
+    fetch_text = cached_posting_text(cache, fetch_text=lambda url: f"http:{url}")
+
+    assert fetch_text("https://a.example/1") == "cached description"
+    assert fetch_text("https://a.example/2") == "http:https://a.example/2"
+    assert fetch_text("https://a.example/3") == "http:https://a.example/3"
+
+
+def test_run_applied_marks_tracker_so_scrape_drops_it(tmp_path):
+    """A posting marked applied must not come back in a later scrape, even
+    from a different source under a different URL."""
+    from job_search_cli import filter_and_write, run_applied
+    from job_search.markdown_output import write_internships_md
+
+    output_path = tmp_path / "fall_2026_internships.md"
+    tracker_path = tmp_path / "tracker.csv"
+    write_internships_md(output_path, [
+        Posting(title="Data Science Intern", company="Acme", location="Remote",
+                url="https://acme.com/jobs/1", source="ats", fetched_date="2026-07-26",
+                fit_score=0.5),
+    ])
+
+    missing = run_applied(output_path, tracker_path,
+                          ["https://acme.com/jobs/1", "https://nope.example/9"])
+    assert missing == ["https://nope.example/9"]
+
+    same_job_elsewhere = Posting(title="data science intern", company="ACME",
+                                 location="remote", url="https://linkedin.com/jobs/view/7",
+                                 source="linkedin", fetched_date="2026-07-27")
+    kept = filter_and_write([same_job_elsewhere], tracker_path, output_path,
+                            within_range=lambda loc: True)
+    assert kept == []
+
+
+def test_run_applied_falls_back_to_tracker_when_posting_left_the_markdown(tmp_path):
+    """After a posting reaches pending-review it is dropped from the markdown,
+    so `applied <url>` has to flip the existing tracker row by URL instead."""
+    from job_search_cli import run_applied
+    from job_search.markdown_output import write_internships_md
+    from job_search.tracker import TrackerRow, read_tracker, upsert, write_tracker
+    from job_search.posting import posting_key
+
+    output_path = tmp_path / "fall_2026_internships.md"
+    tracker_path = tmp_path / "tracker.csv"
+    write_internships_md(output_path, [])
+    rows = {}
+    upsert(rows, TrackerRow(company="Acme", title="Data Science Intern", location="Remote",
+                            url="https://acme.com/jobs/1", status="pending-review",
+                            fit_score="0.50", date="2026-07-26"))
+    write_tracker(tracker_path, rows)
+
+    assert run_applied(output_path, tracker_path, ["https://acme.com/jobs/1"]) == []
+    row = read_tracker(tracker_path)[posting_key("Data Science Intern", "Acme", "Remote")]
+    assert row.status == "applied"
+    assert row.fit_score == "0.50"
+
+
+def test_run_status_groups_rows_by_status(tmp_path):
+    from job_search_cli import run_status
+    from job_search.tracker import TrackerRow, upsert, write_tracker
+
+    tracker_path = tmp_path / "tracker.csv"
+    rows = {}
+    for company, status in [("A", "applied"), ("B", "applied"), ("C", "pending-review")]:
+        upsert(rows, TrackerRow(company=company, title="T", location="Remote",
+                                url=f"https://{company}.example", status=status,
+                                fit_score="0.5", date="2026-07-26"))
+    write_tracker(tracker_path, rows)
+
+    grouped = run_status(tracker_path)
+    assert sorted(grouped) == ["applied", "pending-review"]
+    assert len(grouped["applied"]) == 2

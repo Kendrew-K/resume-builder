@@ -1,11 +1,30 @@
 #!/usr/bin/env python
 """Convert a resume Markdown file to an ATS-safe one-page PDF via headless Chrome.
-Usage: python md_to_pdf.py resumes/hypernet.md
+Usage: python md_to_pdf.py resumes/acme.md
 """
-import sys, subprocess, tempfile, os, pathlib, re
+import sys, subprocess, tempfile, os, pathlib, re, shutil
 import markdown
 
-CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+# Any Chromium build works. Set CHROME_PATH if yours is not on PATH or at one
+# of the usual install locations.
+CHROME_CANDIDATES = [
+    os.environ.get("CHROME_PATH"),
+    "google-chrome", "chromium", "chromium-browser",
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+]
+
+
+def find_chrome():
+    for candidate in CHROME_CANDIDATES:
+        if not candidate:
+            continue
+        if os.path.isfile(candidate) or shutil.which(candidate):
+            return candidate
+    raise SystemExit(
+        "No Chrome/Chromium found. Install one or set CHROME_PATH to its executable."
+    )
 
 CSS = """
 @page { size: letter; margin: 0.45in; }
@@ -37,11 +56,13 @@ def main(md_path):
     tmp_html = tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8")
     tmp_html.write(html); tmp_html.close()
     pdf_path = md_path.with_suffix(".pdf")
-    subprocess.run([CHROME, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+    subprocess.run([find_chrome(), "--headless", "--disable-gpu", "--no-pdf-header-footer",
                     f"--print-to-pdf={pdf_path}", "file:///" + tmp_html.name.replace(os.sep, "/")],
                    check=True, capture_output=True)
     os.unlink(tmp_html.name)
     print(f"Wrote {pdf_path}")
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "resumes/hypernet.md")
+    if len(sys.argv) < 2:
+        raise SystemExit("Usage: python md_to_pdf.py <resume.md>")
+    main(sys.argv[1])

@@ -47,7 +47,7 @@ Builds a queue: every posting in `fall_2026_internships.md` scoring >=30% fit AN
 2. **Resume**: if `resumes/<company>.md` doesn't exist yet, draft it now via the existing pipeline described in `README.md`/`RESUME_GUIDELINES.md` (pull from `experiences.md`, tailor to the posting, informed by step 1). Export to PDF via `python md_to_pdf.py resumes/<company>.md`. Verify PDF is exactly 1 page (`grep -a -o "/Count [0-9]*" resumes/<company>.pdf` must read `/Count 1`, per existing `RESUME_GUIDELINES.md` rule); if it overflows, trim lowest-relevance content and re-export, looping until it fits.
 3. **Cover letter**: if `resumes/<company>_cover_letter.md` doesn't exist yet, draft it now — same existing pattern already used for `jpmc_cover_letter.md` etc (contact header, dateline, 4-5 paragraphs, informed by step 1 + `experiences.md`, same writing rules as `README.md`: no em dash, no filler, verb-first, honest/no fabrication). Export via the SAME `md_to_pdf.py resumes/<company>_cover_letter.md` (no new script — it's already a generic markdown-to-PDF converter). Same 1-page verify-and-trim loop.
 4. **Detect ATS platform** by URL/DOM pattern: `myworkdayjobs.com` → Workday, `greenhouse.io` → Greenhouse, `lever.co` → Lever. Unsupported platform or unparseable form → log to `job_search_tracker.csv` as `needs-manual`, skip to next posting in queue, continue (never halts the batch).
-5. **Playwright**: open the posting, fill known fields from `experiences.md`/`Profile.pdf` contact info (name, email, phone), upload both PDFs. Stop at the review/confirmation screen. Never click submit.
+5. **Claude in Chrome** (the browser extension driving the user's own logged-in Chrome; replaced Playwright MCP): open the posting, fill known fields from `experiences.md`/`Profile.pdf` contact info (name, email, phone), upload both PDFs. Stop at the review/confirmation screen. Never click submit.
 6. **Record**: update `job_search_tracker.csv` — status `pending-review` for anything that reached the review screen (you decide submit/skip manually in the browser), `needs-manual` for anything skipped due to ATS/form issues.
 7. **Report**: at the end of the batch, print/return a summary — total processed, how many reached review screen, how many needs-manual, running applied-count.
 
@@ -63,7 +63,7 @@ scrape ──────────>│    (cross-referenced against job_searc
 fall_2026_internships.md (>=30% fit rows) ─> apply (bulk queue)
   ├─> draft resume (if missing) ─> md_to_pdf.py ─> PDF (1-page verified)
   ├─> draft cover letter (if missing) ─> md_to_pdf.py ─> PDF (1-page verified)
-  ├─> Playwright: fill form, upload both, stop at review
+  ├─> Claude in Chrome: fill form, upload both, stop at review
   └─> job_search_tracker.csv updated (pending-review / needs-manual)
 ```
 
@@ -76,4 +76,4 @@ fall_2026_internships.md (>=30% fit rows) ─> apply (bulk queue)
 ## Testing
 - `scrape`: run against known-live search URLs per source, verify parsing/dedupe/location-filter correctness; verify a deliberately-blocked source degrades without crashing the run.
 - `rank`: fixture of 3-4 postings with known skill overlap, verify fit% math and the exact-30% cutoff boundary.
-- `apply`: dry run against one Workday and one Greenhouse posting — verify resume+cover-letter draft/export/1-page-trim, verify Playwright fill stops at review without submitting, verify an unsupported-ATS posting logs `needs-manual` and the batch continues to the next item.
+- `apply`: dry run against one Workday and one Greenhouse posting — verify resume+cover-letter draft/export/1-page-trim, verify the Claude in Chrome fill stops at review without submitting, verify an unsupported-ATS posting logs `needs-manual` and the batch continues to the next item.
