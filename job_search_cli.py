@@ -133,6 +133,20 @@ def run_rank(output_path, experiences_path,
     return postings, qualifying
 
 
+def run_top(output_path, limit) -> list[Posting]:
+    """Return the `limit` best-scoring postings, highest fit first.
+
+    `rank` only prints how many cleared the threshold, which does not tell you
+    which jobs to open. Unscored postings sort last rather than as zero, so a
+    run before `rank` is obviously empty of scores instead of looking like a
+    wall of bad matches.
+    """
+    postings = parse_internships_md(output_path)
+    postings.sort(key=lambda p: (p.fit_score is not None, p.fit_score or 0.0),
+                  reverse=True)
+    return postings[:limit]
+
+
 def run_applied(output_path, tracker_path, urls) -> list[str]:
     """Mark the postings at `urls` as applied in the tracker.
 
@@ -206,6 +220,8 @@ def main():
     ingest = sub.add_parser("ingest")
     ingest.add_argument("json_path", help="JSON dump collected by Claude in Chrome")
     sub.add_parser("status")
+    top = sub.add_parser("top")
+    top.add_argument("-n", type=int, default=10, help="how many to show (default 10)")
     applied = sub.add_parser("applied")
     applied.add_argument("urls", nargs="+", help="posting URLs to mark applied")
     args = parser.parse_args()
@@ -228,6 +244,10 @@ def main():
             print(f"{status} ({len(grouped[status])})")
             for row in grouped[status]:
                 print(f"  {row.date}  {row.company} - {row.title} ({row.location})")
+    elif args.command == "top":
+        for p in run_top(OUTPUT_PATH, args.n):
+            score = "  --" if p.fit_score is None else f"{p.fit_score:5.0%}"
+            print(f"{score}  {p.company[:20]:<20} {p.title[:34]}")
     elif args.command == "ingest":
         postings, n = run_ingest(args.json_path, TRACKER_PATH, OUTPUT_PATH)
         print(f"Ingested {n} browser-collected postings. {len(postings)} total within range.")

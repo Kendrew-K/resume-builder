@@ -3,7 +3,7 @@
 # puts the repo root on sys.path so both the `job_search` package and the
 # root-level `job_search_cli.py` module import cleanly.
 from job_search.posting import Posting
-from job_search_cli import run_scrape, run_rank
+from job_search_cli import run_scrape, run_rank, run_top
 
 
 def test_run_scrape_dedupes_filters_and_writes(tmp_path):
@@ -237,3 +237,23 @@ def test_run_status_groups_rows_by_status(tmp_path):
     grouped = run_status(tracker_path)
     assert sorted(grouped) == ["applied", "pending-review"]
     assert len(grouped["applied"]) == 2
+
+
+def test_run_top_orders_by_fit_and_sinks_unscored(tmp_path):
+    output_path = tmp_path / "fall_2026_internships.md"
+    from job_search.markdown_output import write_internships_md
+    write_internships_md(output_path, [
+        Posting(title="BI Intern", company="Northwind", location="Remote",
+                url="https://example.com/1", source="ats", fetched_date="2026-07-08",
+                fit_score=0.5),
+        Posting(title="Unranked Intern", company="Nobody", location="Remote",
+                url="https://example.com/2", source="ats", fetched_date="2026-07-08"),
+        Posting(title="Data Science Intern", company="Acme", location="Remote",
+                url="https://example.com/3", source="ats", fetched_date="2026-07-08",
+                fit_score=0.9),
+    ])
+
+    top = run_top(output_path, limit=3)
+
+    assert [p.company for p in top] == ["Acme", "Northwind", "Nobody"]
+    assert run_top(output_path, limit=1)[0].fit_score == 0.9

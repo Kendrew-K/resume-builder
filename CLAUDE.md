@@ -25,6 +25,7 @@ plain words rather than padding.
 ```bash
 python job_search_cli.py scrape    # find postings -> internships.md
 python job_search_cli.py rank      # score each against experiences.md
+python job_search_cli.py top -n 10 # best matches, highest fit first
 python job_search_cli.py status    # applied / pending / manual
 python job_search_cli.py applied <url>
 python md_to_pdf.py <file>.md      # Markdown resume -> one-page PDF

@@ -66,6 +66,7 @@ pipeline runs without setting any of them:
 ```bash
 python job_search_cli.py scrape          # find postings, write internships.md
 python job_search_cli.py rank            # score each against your profile
+python job_search_cli.py top -n 10       # the best matches, highest fit first
 python job_search_cli.py status          # what is applied / pending / manual
 python job_search_cli.py applied <url>   # mark one or more as applied
 ```
@@ -78,6 +79,17 @@ $ python -m job_search.geocode "Remote" "Dallas, TX (Remote)" "Bogota, Colombia 
 KEEP  Remote
 KEEP  Dallas, TX (Remote)
 drop  Bogota, Colombia - Remote
+```
+
+`top` is the quick look at the result. Postings that have not been ranked yet
+sort last and print `--` instead of a score, so running it before `rank` is
+obviously empty rather than looking like a wall of bad matches:
+
+```
+$ python job_search_cli.py top -n 3
+   86%  Acme Analytics       Data Science Intern
+   50%  Northwind            BI Intern
+   33%  DeepCore             ML Research Intern
 ```
 
 `scrape` also caches the job descriptions it got for free from company ATS
